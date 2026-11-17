@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Todo List v6.16</title>
+
+  <!-- ブラウザのアドレスバー・ステータスバーをミッドナイトブルーにする設定 -->
+  <meta name="theme-color" content="#0f172a">
+
+  <!-- ドラッグ＆ドロップ用ライブラリ (CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+  <!-- 画面キャプチャ用ライブラリ (html2canvas) (CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    :root {
+      --midnight-blue: #0f172a;
+      --card-bg: #ffffff;
+      --text-color: #333333;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --danger: #ef4444;
+      --border: #e5e7eb;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--midnight-blue);
+      color: var(--text-color);
+      padding: 16px 12px;
+      min-height: 100vh;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 440px;
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+      box-sizing: border-box;
+      margin-bottom: 12px;
+    }
+
+    /* 画像保存プレビュー用モーダル */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(15, 23, 42, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-content {
+      background: white;
+      width: 90%;
+      max-width: 400px;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      box-sizing: border-box;
+      max-height: 85vh;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      margin-bottom: 12px;
+      font-weight: bold;
+      font-size: 1rem;
+      color: #1f2937;
+    }
+
+    .modal-close-btn {
+      background: #f3f4f6;
+      border: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #4b5563;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-close-btn:hover {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .preview-image-container {
+      width: 100%;
+      overflow-y: auto;
+      max-height: 55vh;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #f9fafb;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .preview-image-container img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .modal-info-text {
+      font-size: 0.8rem;
+      color: #6b7280;
+      text-align: center;
+    }
+
+    /* ヘッダー＆現在日付表示 */
+    .header-area {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      margin: 0 0 6px 0;
+      font-size: 1.35rem;
+    }
+
+    .today-date {
+      font-size: 0.85rem;
+      color: #4b5563;
+      font-weight: 500;
+      background-color: #f3f4f6;
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+
+    /* フォーム領域 */
+    .todo-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    input[type="text"], select {
+      padding: 9px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+
+    input[type="text"] { flex: 1; }
+
+    /* 上の新規フォーム側：ボタンから一撃でカレンダーを起動するスマートな設計 */
+    .form-date-container {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .form-date-btn {
+      background: #f3f4f6;
+      border: 1px dashed #d1d5db;
+      padding: 9px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: #4b5563;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .form-date-btn:hover { background: #e5e7eb; }
+
+    .form-hidden-date {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+      width: 1px;
+      height: 1px;
+    }
+
+    button.btn-add {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 9px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 0.95rem;
+      white-space: nowrap;
+    }
+
+    button.btn-add:hover { background-color: var(--primary-hover); }
+
+    /* テンプレート追加エリア */
+    .template-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-template {
+      background-color: #eef2ff;
+      border: 1px solid #c7d2fe;
+      color: #4338ca;
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .btn-template:hover {
+      background-color: #e0e7ff;
+    }
+
+    /* フィルタータブ（スマホで改行されないよう調整） */
+    .filter-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      padding: 6px 6px;
+      cursor: pointer;
+      border-radius: 4px;
+      color: #6b7280;
+      font-size: 0.8rem;
+      flex: 1;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .tab-btn.active {
+      background-color: var(--primary);
+      color: white;
+      font-weight: bold;
+    }
+
+    /* キャプチャ対象エリア */
+    #capture-area {
+      background: #ffffff;
+      padding: 4px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .capture-header {
+      display: none; 
+      font-size: 1.1rem;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--primary);
+    }
+
+    .capture-timestamp {
+      display: none;
+      font-size: 0.8rem;
+      color: #6b7280;
+      text-align: right;
+      margin-bottom: 8px;
+    }
+
+    /* タスクリスト */
+    .todo-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .todo-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      background: #fff;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .todo-item:hover { background-color: #f9fafb; }
+
+    .item-top-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    /* 四角チェックボックス */
+    .custom-checkbox {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #6b7280;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+      color: var(--primary);
+      flex-shrink: 0;
+      background: #fff;
+    }
+
+    .todo-item.completed .custom-checkbox {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+
+    .todo-item.completed .custom-checkbox::after {
+      content: "✓";
+    }
+
+    .todo-text {
+      flex: 1;
+      font-size: 0.95rem;
+      word-break: break-all;
+      line-height: 1.4;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    /* 通常タスクのみ完了時に打ち消し線＆グレイアウト */
+    .todo-item.completed.normal-todo .todo-text {
+      text-decoration: line-through;
+      color: #9ca3af;
+    }
+
+    /* タイピング文字数入力エリア */
+    .typing-input-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: normal;
+      text-decoration: none !important;
+    }
+
+    .typing-count-input {
+      width: 72px;
+      padding: 2px 8px !important;
+      font-size: 0.9rem !important;
+      text-align: right;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 4px !important;
+      background-color: #f8fafc;
+      color: #1e293b;
+      font-variant-numeric: tabular-nums;
+      flex: none !important;
+      box-sizing: border-box;
+    }
+
+    .typing-count-input:focus {
+      outline: none;
+      border-color: var(--primary) !important;
+      background-color: #ffffff;
+    }
+
+    /* 画像キャプチャ時にinputの代わりに出現する文字切れ防止用のspan */
+    .typing-count-display {
+      display: none;
+      min-width: 72px;
+      padding: 2px 8px;
+      font-size: 0.9rem;
+      text-align: right;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      background-color: #f8fafc;
+      color: #1e293b;
+      font-variant-numeric: tabular-nums;
+      box-sizing: border-box;
+      line-height: 1.4;
+    }
+
+    .btn-delete {
+      background: none;
+      border: none;
+      color: var(--danger);
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 2px 6px;
+    }
+
+    /* 2段目（日付・優先度） */
+    .item-bottom-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-left: 30px;
+      font-size: 0.85rem;
+      color: #6b7280;
+      flex-wrap: wrap;
+      position: relative;
+    }
+
+    /* 下のリスト側：完全安定の一撃カレンダー＆即時反映 */
+    .date-badge-btn {
+      background: #f3f4f6;
+      border: 1px dashed #d1d5db;
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: #4b5563;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .date-badge-btn:hover { background: #e5e7eb; }
+
+    .list-hidden-date {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+      width: 1px;
+      height: 1px;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: white;
+      white-space: nowrap;
+      margin-left: auto;
+    }
+    .priority-high { background-color: #ef4444; }
+    .priority-medium { background-color: #f59e0b; }
+    .priority-low { background-color: #10b981; }
+
+    /* キャプチャ内だけに一時表示されるコピーライト */
+    .capture-footer-copyright {
+      display: none;
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px dashed #e5e7eb;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #0f172a;
+    }
+    .capture-footer-copyright a {
+      color: #42c0d2;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    /* アクションパネル */
+    .action-panel {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .action-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .btn-action {
+      background-color: #f3f4f6;
+      border: 1px solid var(--border);
+      color: #374151;
+      padding: 8px 4px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .btn-action:hover { background-color: #e5e7eb; }
+
+    /* 日付なしチェック一括解除ボタン用スタイル */
+    .btn-reset-nodate {
+      background-color: #fff1f2;
+      border: 1px solid #fecdd3;
+      color: #e11d48;
+      width: 100%;
+      grid-column: span 3;
+    }
+    .btn-reset-nodate:hover { background-color: #ffe4e6; }
+
+    /* ページ最下部（カードの直下）のコピーライト */
+    .page-footer {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #ffffff;
+      margin-top: 4px;
+    }
+    .page-footer a {
+      color: #42c0d2;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .page-footer a:hover { text-decoration: underline; }
+
+    /* 印刷 / PDF保存専用スタイル */
+    @media print {
+      @page {
+        margin: 10mm;
+        size: auto;
+      }
+      html, body {
+        background: #ffffff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        min-height: 0 !important;
+        display: block !important;
+      }
+      .container {
+        box-shadow: none !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        border: none !important;
+      }
+      .todo-form, .filter-tabs, .action-panel, .btn-delete, .date-badge-btn, .form-date-btn, .page-footer, .modal-overlay, .capture-header {
+        display: none !important;
+      }
+      .todo-item {
+        border: none !important;
+        border-bottom: 1px solid #ddd !important;
+        padding: 6px 0 !important;
+        page-break-inside: avoid;
+      }
+      .typing-count-input {
+        display: none !important;
+      }
+      .typing-count-display {
+        display: inline-block !important;
+        border: none !important;
+        background: transparent !important;
+        padding: 0 2px !important;
+        min-width: auto !important;
+      }
+      .capture-timestamp, .capture-footer-copyright {
+        display: block !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 画像保存プレビュー用モーダル -->
+  <div class="modal-overlay" id="preview-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span>📸 保存した画像プレビュー</span>
+        <button class="modal-close-btn" onclick="closeModal()">✕</button>
+      </div>
+      <div class="preview-image-container">
+        <img id="preview-img" src="" alt="Todo Preview">
+      </div>
+      <div class="modal-info-text">画像を長押しして保存し直すこともできます</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="header-area">
+      <h1>📝 My Todo List</h1>
+      <div class="today-date" id="today-date-display">📅 ----年--月--日</div>
+    </div>
+
+    <!-- タスク追加フォーム -->
+    <form class="todo-form" id="todo-form">
+      <div class="input-group">
+        <input type="text" id="todo-input" placeholder="新しいタスクを入力..." required>
+        <button type="submit" class="btn-add">追加</button>
+      </div>
+      <div class="input-group">
+        <!-- 💡 上の新規フォーム側：ボタントリガー式カレンダー（今日でも他の日付でも確実に入力・リセット可能） -->
+        <div class="form-date-container">
+          <button type="button" class="form-date-btn" id="form-date-btn" onclick="openFormPicker()" title="日付を設定">＋ 日付設定 ✎</button>
+          <input type="date" id="form-hidden-date" class="form-hidden-date" onchange="onFormDateChanged(this.value)">
+        </div>
+        <select id="todo-priority" style="flex: 1;">
+          <option value="medium">優先度: 中</option>
+          <option value="high">優先度: 高</option>
+          <option value="low">優先度: 低</option>
+        </select>
+      </div>
+      <!-- 💡 テンプレート追加ボタン -->
+      <div class="template-group">
+        <button type="button" class="btn-template" onclick="addTypingTemplate()">⌨️ タイピング タスクを追加</button>
+      </div>
+    </form>
+
+    <!-- フィルタータブ（スマホで改行されないよう調整） -->
+    <div class="filter-tabs">
+      <button class="tab-btn active" data-filter="all">すべて (<span id="count-all">0</span>)</button>
+      <button class="tab-btn" data-filter="active">未完了 (<span id="count-active">0</span>)</button>
+      <button class="tab-btn" data-filter="completed">完了 (<span id="count-completed">0</span>)</button>
+      <button class="tab-btn" data-filter="typing">タイピング (<span id="count-typing">0</span>)</button>
+    </div>
+
+    <!-- キャプチャ・印刷対象エリア -->
+    <div id="capture-area">
+      <div class="capture-header">📝 My Todo List</div>
+      <div class="capture-timestamp" id="capture-timestamp"></div>
+      
+      <ul class="todo-list" id="todo-list"></ul>
+
+      <!-- 画像保存・PDF時のみ一時出現する内部コピーライト -->
+      <div class="capture-footer-copyright" id="capture-footer-copyright">
+        &copy; <span id="copyright-year-in"></span>
+        <a href="https://himithunosupeku.web.fc2.com"> 秘密のスペック</a>
+      </div>
+    </div>
+
+    <!-- アクションパネル -->
+    <div class="action-panel">
+      <div style="font-size: 0.85rem; font-weight: bold; color: #4b5563;">📊 履歴・振り返り保存</div>
+      <div class="action-buttons">
+        <button class="btn-action" onclick="shareAsImage()">🖼️ 画像で共有</button>
+        <button class="btn-action" onclick="downloadAsImage()">💾 画像保存</button>
+        <button class="btn-action" onclick="printToPDF()">🖨️ 印刷 / PDF</button>
+        <!-- 💡 日付なしの完了チェックを一括解除するボタン -->
+        <button class="btn-action btn-reset-nodate" onclick="resetNoDateCompleted()">🔄 日付なしタスクのチェックを外す</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Web閲覧時にカードの直下に配置されるコピーライト -->
+  <footer class="page-footer">
+    &copy; <span id="copyright-year-out"></span>
+    <a href="https://himithunosupeku.web.fc2.com"> 秘密のスペック</a>
+  </footer>
+
+  <script>
+    let todos = JSON.parse(localStorage.getItem('vanilla_todos_v6.16')) || [];
+    let typingHistory = JSON.parse(localStorage.getItem('typing_history_v6.16')) || [];
+    let currentFilter = 'all';
+    let selectedFormDueDate = ''; // 上のフォームで仮設定された日付
+
+    const form = document.getElementById('todo-form');
+    const input = document.getElementById('todo-input');
+    const formDateBtn = document.getElementById('form-date-btn');
+    const formHiddenDate = document.getElementById('form-hidden-date');
+    const priorityInput = document.getElementById('todo-priority');
+    const listEl = document.getElementById('todo-list');
+    const tabBtns = document.querySelectorAll('.tab-btn');
+
+    document.addEventListener('DOMContentLoaded', () => {
+      updateTodayDateDisplay();
+      const yr = new Date().getFullYear();
+      document.getElementById('copyright-year-in').textContent = yr;
+      document.getElementById('copyright-year-out').textContent = yr;
+      render();
+
+      new Sortable(listEl, {
+        animation: 150,
+        filter: '.typing-count-input',
+        preventOnFilter: false,
+        onEnd: (evt) => {
+          const itemEls = listEl.querySelectorAll('.todo-item');
+          const newOrderIds = Array.from(itemEls).map(el => Number(el.dataset.id));
+          if (currentFilter === 'typing') {
+            typingHistory.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+          } else {
+            todos.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+          }
+          saveAndRender();
+        }
+      });
+    });
+
+    function updateTodayDateDisplay() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const days = ['日', '月', '火', '水', '木', '金', '土'];
+      document.getElementById('today-date-display').textContent = `📅 ${y}年${m}月${d}日 (${days[now.getDay()]})`;
+    }
+
+    function getFormattedToday() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function getFullTimeStamp() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      return `記録日時: ${y}/${m}/${d} ${hh}:${mm}:${ss}`;
+    }
+
+    function getFileTimeStamp() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      return `${y}${m}${d}-${hh}${mm}${ss}`;
+    }
+
+    function showPreviewModal(dataUrl) {
+      document.getElementById('preview-img').src = dataUrl;
+      document.getElementById('preview-modal').classList.add('show');
+    }
+
+    function closeModal() {
+      document.getElementById('preview-modal').classList.remove('show');
+    }
+
+    function saveToStorageOnly() {
+      localStorage.setItem('vanilla_todos_v6.16', JSON.stringify(todos));
+      localStorage.setItem('typing_history_v6.16', JSON.stringify(typingHistory));
+    }
+
+    function saveAndRender() {
+      saveToStorageOnly();
+      render();
+    }
+
+    function render() {
+      listEl.innerHTML = '';
+
+      let displayList = [];
+      if (currentFilter === 'typing') {
+        displayList = typingHistory;
+      } else {
+        displayList = todos.filter(todo => {
+          if (currentFilter === 'active') return !todo.completed;
+          if (currentFilter === 'completed') return todo.completed;
+          return true; // 'all'
+        });
+      }
+
+      if (displayList.length === 0) {
+        listEl.innerHTML = `<li style="text-align: center; color: #9ca3af; padding: 20px; font-size: 0.9rem;">タスクはありません</li>`;
+        updateCounters();
+        return;
+      }
+
+      displayList.forEach(todo => {
+        const li = document.createElement('li');
+        const itemTypeClass = todo.type === 'typing' ? 'typing-todo' : 'normal-todo';
+        
+        let isItemCompleted = todo.completed;
+        if (currentFilter === 'typing') {
+          isItemCompleted = true; // タイピングタブ内では常に完了状態
+        }
+
+        li.className = `todo-item ${isItemCompleted ? 'completed' : ''} ${itemTypeClass}`;
+        li.dataset.id = todo.id;
+
+        li.addEventListener('click', (e) => {
+          if (
+            e.target.closest('.btn-delete') ||
+            e.target.closest('.date-badge-btn') ||
+            e.target.closest('.list-hidden-date') ||
+            e.target.closest('.typing-input-wrap')
+          ) return;
+          
+          if (currentFilter === 'typing') return; // タイピングタブ内ではクリックでのトグル無効
+          toggleTodo(todo.id);
+        });
+
+        const pMap = { high: '高', medium: '中', low: '低' };
+
+        let displayDate = todo.dueDate;
+        if (currentFilter === 'typing' && !todo.dueDate) {
+          displayDate = getFormattedToday();
+        }
+
+        let dateUI = '';
+        if (displayDate) {
+          dateUI = `<span class="date-badge-btn" onclick="clearDate(event, ${todo.id})" title="タップして日付をリセット">📅 ${displayDate}</span>`;
+        } else {
+          dateUI = `
+            <span class="date-badge-btn unassigned-date-btn" onclick="openInlinePicker(${todo.id})" title="日付を設定">＋ 日付設定 ✎</span>
+            <input type="date" id="list-date-${todo.id}" class="list-hidden-date" onchange="saveDate(${todo.id}, this.value)">
+          `;
+        }
+
+        const badgeUI = `<span class="badge priority-${todo.priority}">優先度: ${pMap[todo.priority]}</span>`;
+
+        let textContentHTML = escapeHtml(todo.text);
+        if (todo.type === 'typing') {
+          const val = escapeHtml(todo.typingCount || '');
+          const displayVal = val || '0';
+          textContentHTML += `
+            <span class="typing-input-wrap" onclick="event.stopPropagation()">
+              <input type="text" inputmode="numeric" pattern="[0-9]*" class="typing-count-input" value="${val}" placeholder="0" oninput="updateTypingCount(${todo.id}, this)">
+              <span class="typing-count-display">${displayVal}</span>字
+            </span>
+          `;
+        }
+
+        li.innerHTML = `
+          <div class="item-top-row">
+            <div class="custom-checkbox"></div>
+            <span class="todo-text">${textContentHTML}</span>
+            <button class="btn-delete" onclick="deleteTodo(event, ${todo.id})">✕</button>
+          </div>
+          <div class="item-bottom-row">
+            <div>${dateUI}</div>
+            ${badgeUI}
+          </div>
+        `;
+        listEl.appendChild(li);
+      });
+
+      updateCounters();
+    }
+
+    function updateCounters() {
+      document.getElementById('count-all').textContent = todos.length;
+      document.getElementById('count-active').textContent = todos.filter(t => !t.completed).length;
+      document.getElementById('count-completed').textContent = todos.filter(t => t.completed).length;
+      document.getElementById('count-typing').textContent = typingHistory.length;
+    }
+
+    function openFormPicker() {
+      if (typeof formHiddenDate.showPicker === 'function') {
+        try { formHiddenDate.showPicker(); } catch(err) { formHiddenDate.click(); }
+      } else {
+        formHiddenDate.click();
+      }
+    }
+
+    function onFormDateChanged(val) {
+      selectedFormDueDate = val;
+      if (val) {
+        formDateBtn.textContent = `📅 ${val}`;
+        formDateBtn.style.color = '#1f2937';
+      } else {
+        formDateBtn.textContent = '＋ 日付設定 ✎';
+        formDateBtn.style.color = '#4b5563';
+      }
+    }
+
+    function resetFormInputs() {
+      input.value = '';
+      selectedFormDueDate = '';
+      formHiddenDate.value = '';
+      formDateBtn.textContent = '＋ 日付設定 ✎';
+      formDateBtn.style.color = '#4b5563';
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+
+      todos.push({
+        id: Date.now(),
+        type: 'normal',
+        text: text,
+        completed: false,
+        dueDate: selectedFormDueDate,
+        priority: priorityInput.value
+      });
+
+      resetFormInputs();
+      saveAndRender();
+    });
+
+    function addTypingTemplate() {
+      const extraText = input.value.trim();
+      const label = extraText ? `タイピング（${extraText}）` : 'タイピング';
+
+      todos.push({
+        id: Date.now(),
+        type: 'typing',
+        text: label,
+        typingCount: '',
+        completed: false,
+        dueDate: selectedFormDueDate,
+        priority: priorityInput.value
+      });
+
+      resetFormInputs();
+      saveAndRender();
+    }
+
+    function updateTypingCount(id, inputEl) {
+      const halfWidth = inputEl.value.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+      const sanitized = halfWidth.replace(/[^0-9]/g, '');
+      if (inputEl.value !== sanitized) {
+        inputEl.value = sanitized;
+      }
+      const displaySpan = inputEl.parentElement.querySelector('.typing-count-display');
+      if (displaySpan) {
+        displaySpan.textContent = sanitized || '0';
+      }
+
+      if (currentFilter === 'typing') {
+        typingHistory = typingHistory.map(t => t.id === id ? { ...t, typingCount: sanitized } : t);
+      } else {
+        todos = todos.map(t => t.id === id ? { ...t, typingCount: sanitized } : t);
+      }
+      saveToStorageOnly();
+    }
+
+    // 💡 決定的な改善：
+    // 通常タブで完了チェックを入れた瞬間、タイピング履歴には「完全な別ID・別データ」として新しいカードをコピー・生成して追加する。
+    // これにより、元のタスクとタイピング履歴のデータが完全に独立するため、後からどちらを消そうが・クリアしようが、お互いに一切干渉しなくなります！
+    function toggleTodo(id) {
+      const targetTodo = todos.find(t => t.id === id);
+      if (!targetTodo) return;
+
+      todos = todos.map(t => {
+        if (t.id === id) {
+          const nextCompleted = !t.completed;
+          
+          if (t.type === 'typing' && nextCompleted) {
+            // 💡 完全に独立したクローン（別ID）を作成してタイピング履歴に追加
+            const historyItem = {
+              id: Date.now() + Math.floor(Math.random() * 1000), // 完全独立したユニークID
+              type: 'typing',
+              text: t.text,
+              typingCount: t.typingCount,
+              completed: true,
+              dueDate: t.dueDate || getFormattedToday(),
+              priority: t.priority
+            };
+            typingHistory.unshift(historyItem);
+          }
+
+          return { ...t, completed: nextCompleted };
+        }
+        return t;
+      });
+      saveAndRender();
+    }
+
+    function deleteTodo(e, id) {
+      e.stopPropagation();
+      if (confirm('このタスクを削除しますか？')) {
+        if (currentFilter === 'typing') {
+          typingHistory = typingHistory.filter(t => t.id !== id);
+        } else {
+          todos = todos.filter(t => t.id !== id);
+        }
+        saveAndRender();
+      }
+    }
+
+    // 💡 一括クリア：通常のタスク＆日付なしタイピングテンプレートをリセットするが、
+    // タイピング履歴（typingHistory）のデータは一切触らない・消さない（完全に非干渉）！
+    function resetNoDateCompleted() {
+      const hasTarget = todos.some(t => !t.dueDate && t.completed);
+      if (!hasTarget) {
+        alert('解除対象となる「日付なしで完了しているタスク」はありません。');
+        return;
+      }
+      if (confirm('日付が設定されていない完了済みタスクのチェックをすべてリセットしますか？（日付付きのタスクや未完了のタスクはそのまま残ります）')) {
+        todos = todos.map(t => {
+          if (t.dueDate) return t;
+          if (t.completed) {
+            if (t.type === 'typing') {
+              return { ...t, completed: false, typingCount: '' };
+            }
+            return { ...t, completed: false };
+          }
+          return t;
+        });
+        saveAndRender();
+      }
+    }
+
+    function openInlinePicker(id) {
+      const picker = document.getElementById(`list-date-${id}`);
+      if (picker) {
+        if (typeof picker.showPicker === 'function') {
+          try { picker.showPicker(); } catch(err) { picker.click(); }
+        } else {
+          picker.click();
+        }
+      }
+    }
+
+    function clearDate(e, id) {
+      e.stopPropagation();
+      if (confirm('設定されている日付を解除しますか？')) {
+        if (currentFilter === 'typing') {
+          typingHistory = typingHistory.map(t => t.id === id ? { ...t, dueDate: '' } : t);
+        } else {
+          todos = todos.map(t => t.id === id ? { ...t, dueDate: '' } : t);
+        }
+        saveAndRender();
+      }
+    }
+
+    function saveDate(id, newDate) {
+      if (currentFilter === 'typing') {
+        typingHistory = typingHistory.map(t => t.id === id ? { ...t, dueDate: newDate } : t);
+      } else {
+        todos = todos.map(t => t.id === id ? { ...t, dueDate: newDate } : t);
+      }
+      saveAndRender();
+    }
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        render();
+      });
+    });
+
+    function prepareCapture() {
+      const tsEl = document.getElementById('capture-timestamp');
+      tsEl.textContent = getFullTimeStamp();
+      tsEl.style.display = 'block';
+
+      document.getElementById('capture-footer-copyright').style.display = 'block';
+
+      document.querySelectorAll('.unassigned-date-btn').forEach(el => {
+        el.style.display = 'none';
+      });
+
+      document.querySelectorAll('.typing-count-input').forEach(el => {
+        el.style.display = 'none';
+      });
+      document.querySelectorAll('.typing-count-display').forEach(el => {
+        el.style.display = 'inline-block';
+      });
+    }
+
+    function clearCapture() {
+      document.getElementById('capture-timestamp').style.display = 'none';
+      document.getElementById('capture-footer-copyright').style.display = 'none';
+
+      document.querySelectorAll('.unassigned-date-btn').forEach(el => {
+        el.style.display = 'inline-flex';
+      });
+
+      document.querySelectorAll('.typing-count-input').forEach(el => {
+        el.style.display = 'inline-block';
+      });
+      document.querySelectorAll('.typing-count-display').forEach(el => {
+        el.style.display = 'none';
+      });
+    }
+
+    function downloadAsImage() {
+      prepareCapture();
+      const target = document.getElementById('capture-area');
+      html2canvas(target, { scale: 2 }).then(canvas => {
+        clearCapture();
+        const dataUrl = canvas.toDataURL('image/png');
+        
+        const link = document.createElement('a');
+        link.download = `todo-log-${getFileTimeStamp()}.png`;
+        link.href = dataUrl;
+        link.click();
+        
+        showPreviewModal(dataUrl);
+      });
+    }
+
+    async function shareAsImage() {
+      if (!navigator.canShare) {
+        alert('お使いのブラウザはWeb共有機能に対応していません。「画像保存」をお使いください。');
+        return;
+      }
+      prepareCapture();
+      const target = document.getElementById('capture-area');
+      try {
+        const canvas = await html2canvas(target, { scale: 2 });
+        clearCapture();
+        canvas.toBlob(async (blob) => {
+          const fileName = `todo-log-${getFileTimeStamp()}.png`;
+          const file = new File([blob], fileName, { type: 'image/png' });
+          const shareData = {
+            title: 'My Todo List 振り返り',
+            text: getFullTimeStamp(),
+            files: [file]
+          };
+          if (navigator.canShare(shareData)) {
+            await navigator.share(shareData);
+          } else {
+            alert('このファイル形式の共有には対応していません。');
+          }
+        });
+      } catch (err) {
+        clearCapture();
+        if (err.name !== 'AbortError') console.error(err);
+      }
+    }
+
+    function printToPDF() {
+      prepareCapture();
+      window.print();
+      setTimeout(clearCapture, 1000);
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, match => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[match]));
+    }
+  </script>
+</body>
+</html>
